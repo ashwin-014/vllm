@@ -320,12 +320,32 @@ class LLMEngine:
         # Update the scheduler with the model outputs.
         seq_groups = self.scheduler.update(output)
 
+        # Get the end time and fill in for prompts based on scheduler_outputs.prompt = True
+        # Get arrival time from seq group
+        # Add in a field within seqs to track prompt time as well
+        if scheduler_outputs.prompt_run:
+            for seq_group in seq_groups:
+                seq_group.time_to_first_token = time.time() - seq_group.arrival_time
+
         # Decode the sequences.
         self._decode_sequences(seq_groups)
         # Stop the sequences that meet the stopping criteria.
         self._stop_sequences(seq_groups)
         # Free the finished sequence groups.
         self.scheduler.free_finished_seq_groups()
+
+        # finish all seq within a group explicitly
+        # not sure whether seq_groups within self.running map to here
+        # they seem to, but the time is too large to finish
+        # when do they complete?
+        # check id() of self.running and seq_groups
+        # seems something
+        # is the status set in stop sequences checked immediately in scheduler free finished seq groups?
+        # why the delay in decode end time?
+        for seq_group in seq_groups:
+            for seq in seq_group:
+                print(seq.decode_end_time)
+            # seq_group.is_finished()
 
         # Create the outputs.
         request_outputs: List[RequestOutput] = []

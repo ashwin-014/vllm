@@ -185,6 +185,19 @@ def main(args: argparse.Namespace):
     )
     print(f"Throughput: {len(requests) / elapsed_time:.2f} requests/s, "
           f"{total_num_tokens / elapsed_time:.2f} tokens/s")
+    total_op_num_tokens = sum(
+        output_len
+        for _, prompt_len, output_len in requests
+    )
+    total_prompt_num_tokens = sum(
+        prompt_len
+        for _, prompt_len, output_len in requests
+    )
+    print(f"Throughput: {len(requests) / elapsed_time:.2f} requests/s, "
+          f"{total_num_tokens / elapsed_time:.2f} tokens/s")
+    
+    print(f"Prompt throughput: {total_prompt_num_tokens / elapsed_time}, Output throughput: {total_op_num_tokens / elapsed_time}")
+    LLM.get_stats(request_outputs)
 
 
 if __name__ == "__main__":
@@ -218,4 +231,5 @@ if __name__ == "__main__":
     if args.tokenizer is None:
         args.tokenizer = args.model
 
+    huggingface_hub.login(token="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")
     main(args)

@@ -160,3 +160,32 @@ class LLM:
         # its previous requests.
         outputs = sorted(outputs, key=lambda x: int(x.request_id))
         return outputs
+
+
+    @staticmethod
+    def get_stats(request_outputs) -> Tuple[float, float, float]:
+        import numpy as np
+        metrics = {
+            "time_to_first_token": [],
+            "average_decode_throughput": [],
+            "prompt_throughput": []
+        }
+        for request_output in request_outputs:
+            metrics["time_to_first_token"].append(request_output.time_to_first_token)
+            metrics["average_decode_throughput"].append(request_output.average_decode_throughput)
+            metrics["prompt_throughput"].append(request_output.prompt_throughput)
+        
+        prompt_throughput = np.array(metrics["prompt_throughput"])
+        time_to_first_token = np.array(metrics["time_to_first_token"])
+        average_decode_throughput = np.array(metrics["average_decode_throughput"])
+
+        prompt_throughput = prompt_throughput[prompt_throughput != -1]
+        time_to_first_token = time_to_first_token[time_to_first_token != -1]
+        average_decode_throughput = average_decode_throughput[average_decode_throughput != -1]
+
+        prompt_throughput = np.mean(prompt_throughput)
+        time_to_first_token = np.mean(time_to_first_token)
+        average_decode_throughput = np.mean(average_decode_throughput)
+
+        print(f"TTF: {time_to_first_token} \t Prompt Throughput: {prompt_throughput} \t Decode Throughput: {average_decode_throughput}")
+        return time_to_first_token, prompt_throughput, average_decode_throughput

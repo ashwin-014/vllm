@@ -1,4 +1,5 @@
 """Sequence and its related classes."""
+import time
 import copy
 import enum
 from typing import Dict, List, Optional, Union
@@ -171,7 +172,11 @@ class Sequence:
         return self.data.cumulative_logprob
 
     def is_finished(self) -> bool:
-        return SequenceStatus.is_finished(self.status)
+        status = SequenceStatus.is_finished(self.status)
+        # print("status: ", status)
+        if status:
+            self.decode_end_time = time.time()
+        return status
 
     def fork(self, child_seq: "Sequence") -> None:
         child_seq.logical_token_blocks = copy.deepcopy(
