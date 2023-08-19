@@ -173,4 +173,4 @@ cython_debug/
 
 # Sphinx documentation
 _build/
-.github/workflows/*
+.github/_workflows/*
