@@ -324,8 +324,11 @@ class LLMEngine:
         # Get arrival time from seq group
         # Add in a field within seqs to track prompt time as well
         if scheduler_outputs.prompt_run:
+            self.prompt_throughputs.append(scheduler_outputs.num_batched_tokens / (time.time() - st))
             for seq_group in seq_groups:
                 seq_group.time_to_first_token = time.time() - seq_group.arrival_time
+        else:
+            self.decode_throughputs.append(scheduler_outputs.num_batched_tokens / (time.time() - st))
 
         # Decode the sequences.
         self._decode_sequences(seq_groups)
@@ -420,6 +423,9 @@ class LLMEngine:
                     f"Pending: {len(self.scheduler.waiting)} reqs, "
                     f"GPU KV cache usage: {gpu_cache_usage * 100:.1f}%, "
                     f"CPU KV cache usage: {cpu_cache_usage * 100:.1f}%")
+        if self.decode_throughputs and self.prompt_throughputs:
+            print(f"prompt_throughputs: {sum(self.prompt_throughputs) / len(self.prompt_throughputs):.2f} "
+                  f"decode_throughputs: {sum(self.decode_throughputs) / len(self.decode_throughputs):.2f}")
         self.last_logging_time = now
 
     def _decode_sequences(self, seq_groups: List[SequenceGroup]) -> None:
