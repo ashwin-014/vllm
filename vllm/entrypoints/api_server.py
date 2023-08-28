@@ -15,6 +15,9 @@ TIMEOUT_KEEP_ALIVE = 5  # seconds.
 TIMEOUT_TO_PREVENT_DEADLOCK = 1  # seconds.
 app = FastAPI()
 
+import huggingface_hub
+huggingface_hub.login(token="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")
+
 
 @app.post("/generate")
 async def generate(request: Request) -> Response:
