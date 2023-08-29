@@ -173,27 +173,47 @@ async def benchmark(
     await asyncio.gather(*tasks)
 
 
+def print_percentile(prompt_throughput, decode_throughput, ttf, percentile) -> None:
+    import numpy as np
+    
+    prompt_throughput = np.array(prompt_throughput)
+    decode_throughput = np.array(decode_throughput)
+    ttf = np.array(ttf)
+
+    prompt_throughput = prompt_throughput[prompt_throughput != -1]
+    decode_throughput = decode_throughput[decode_throughput != -1]
+    ttf = ttf[ttf != -1]
+
+    prompt_throughput = np.percentile(prompt_throughput, percentile)
+    decode_throughput = np.percentile(decode_throughput, percentile)
+    ttf = np.percentile(ttf, percentile)
+    print(f"{percentile}: TTF: {ttf}, Prompt Throughput: {prompt_throughput} \t Decode Throughput: {decode_throughput}")
+
+
 def get_custom_stats():
     prompt_throughputs = []
     time_to_first_tokens = []
-    average_decode_throughputs = []
+    decode_throughputs = []
     for op in CUSTOM_STATS:
         time_to_first_tokens.append(op[0])
         prompt_throughputs.append(op[1])
-        average_decode_throughputs.append(op[2])
+        decode_throughputs.append(op[2])
+
+    for j in [50, 90, 95, 99]:
+        print_percentile(prompt_throughputs, decode_throughputs, time_to_first_tokens, j)
 
     prompt_throughputs = np.array(prompt_throughputs)
     time_to_first_tokens = np.array(time_to_first_tokens)
-    average_decode_throughputs = np.array(average_decode_throughputs)
+    decode_throughputs = np.array(decode_throughputs)
 
     prompt_throughputs = prompt_throughputs[prompt_throughputs != -1]
     time_to_first_tokens = time_to_first_tokens[time_to_first_tokens != -1]
-    average_decode_throughputs = average_decode_throughputs[average_decode_throughputs != -1]
-
+    decode_throughputs = decode_throughputs[decode_throughputs != -1]
+    
     prompt_throughput = np.mean(prompt_throughputs)
     time_to_first_token = np.mean(time_to_first_tokens)
-    average_decode_throughput = np.mean(average_decode_throughputs)
-    print(f"TTF: {time_to_first_token} \t Prompt Throughput: {prompt_throughput} \t Decode Throughput: {average_decode_throughput}")
+    decode_throughputs = np.mean(decode_throughputs)
+    print(f"TTF: {time_to_first_token} \t Prompt Throughput: {prompt_throughput} \t Decode Throughput: {decode_throughputs}")
 
 
 def main(args: argparse.Namespace):

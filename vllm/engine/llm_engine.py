@@ -113,6 +113,9 @@ class LLMEngine:
         # List of (timestamp, num_tokens)
         self.num_generation_tokens: List[Tuple[float, int]] = []
 
+        self.prompt_throughputs = []
+        self.decode_throughputs = []
+
     def _init_workers(self, distributed_init_method: str):
         # Lazy import the Worker to avoid importing torch.cuda/xformers
         # before CUDA_VISIBLE_DEVICES is set in the Worker
@@ -310,6 +313,7 @@ class LLMEngine:
             ]
 
         # Execute the model.
+        st = time.time()
         output = self._run_workers(
             "execute_model",
             seq_group_metadata_list=seq_group_metadata_list,
@@ -345,9 +349,9 @@ class LLMEngine:
         # seems something
         # is the status set in stop sequences checked immediately in scheduler free finished seq groups?
         # why the delay in decode end time?
-        for seq_group in seq_groups:
-            for seq in seq_group:
-                print(seq.decode_end_time)
+        # for seq_group in seq_groups:
+        #     for seq in seq_group.get_seqs():
+        #         print(seq.decode_end_time)
             # seq_group.is_finished()
 
         # Create the outputs.
@@ -361,6 +365,20 @@ class LLMEngine:
             self._log_system_stats(scheduler_outputs.prompt_run,
                                    scheduler_outputs.num_batched_tokens)
         return request_outputs
+
+    @staticmethod
+    def print_percentile(prompt_throughput, decode_throughput, percentile) -> None:
+        import numpy as np
+        
+        prompt_throughput = np.array(prompt_throughput)
+        decode_throughput = np.array(decode_throughput)
+
+        prompt_throughput = prompt_throughput[prompt_throughput != -1]
+        decode_throughput = decode_throughput[decode_throughput != -1]
+
+        prompt_throughput = np.percentile(prompt_throughput, percentile)
+        decode_throughput = np.percentile(decode_throughput, percentile)
+        print(f"{percentile}: Prompt Throughput: {prompt_throughput} \t Decode Throughput: {decode_throughput}")
 
     def _log_system_stats(
         self,
@@ -426,6 +444,8 @@ class LLMEngine:
         if self.decode_throughputs and self.prompt_throughputs:
             print(f"prompt_throughputs: {sum(self.prompt_throughputs) / len(self.prompt_throughputs):.2f} "
                   f"decode_throughputs: {sum(self.decode_throughputs) / len(self.decode_throughputs):.2f}")
+            for j in [50, 90, 95, 99]:
+                self.print_percentile(self.prompt_throughputs, self.decode_throughputs, j)
         self.last_logging_time = now
 
     def _decode_sequences(self, seq_groups: List[SequenceGroup]) -> None:
