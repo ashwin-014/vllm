@@ -229,9 +229,9 @@ class LLMEngine:
     def add_request(
         self,
         request_id: str,
-        prompt: Optional[str],
+        prompt: Optional[List[str]],
         sampling_params: SamplingParams,
-        prompt_token_ids: Optional[List[int]] = None,
+        prompt_token_ids: Optional[List[List[int]]] = None,
         arrival_time: Optional[float] = None,
     ) -> None:
         """Add a request to the engine's request pool.
@@ -250,18 +250,44 @@ class LLMEngine:
             arrival_time: The arrival time of the request. If None, we use
                 the current time.
         """
+        all_prompts = []
+        all_prompt_token_ids = []
+
         if arrival_time is None:
             arrival_time = time.time()
         if prompt_token_ids is None:
             assert prompt is not None
-            prompt_token_ids = self.tokenizer.encode(prompt)
+            prompt_token_ids = []
+            for p in prompt:
+                prompt_token_ids.append(self.tokenizer.encode(p))
+            # prompt_token_ids = self.tokenizer.encode(prompt)
+
+        if sampling_params.output_guidance_config.get("logits_warper", None) == "selection":
+            # Select from given options only
+            options = []
+            for op in sampling_params.output_guidance_config["options"]:
+                options.append(self.tokenizer.encode(op))
+            sampling_params.output_guidance_config["options"] = options
+
+        if sampling_params.output_guidance_config.get("logits_warper", None) == "json_decoder":
+            # Schema for Output json
+            # given input dict format, extract all keys and form a list of prompts and give to the seq
+            # how to do nested json?
+            # what about lists?
+            # also store all variables from the input dict
+            all_prompts = []
+            all_prompt_token_ids = []
+            for key, value in sampling_params.output_guidance_config["schema"].items():
+                new_prompt = '"' + key + '"' + ": " + '"'
+                all_prompts.append(new_prompt)
+                all_prompt_token_ids.append(self.tokenizer.encode(new_prompt))
 
         # Create the sequences.
         block_size = self.cache_config.block_size
         seqs: List[Sequence] = []
         for _ in range(sampling_params.best_of):
             seq_id = next(self.seq_counter)
-            seq = Sequence(seq_id, prompt, prompt_token_ids, block_size)
+            seq = Sequence(seq_id, prompt + all_prompts, prompt_token_ids + all_prompt_token_ids, block_size)
             seqs.append(seq)
 
         # Create the sequence group.
@@ -352,7 +378,7 @@ class LLMEngine:
         # for seq_group in seq_groups:
         #     for seq in seq_group.get_seqs():
         #         print(seq.decode_end_time)
-            # seq_group.is_finished()
+        #     seq_group.is_finished()
 
         # Create the outputs.
         request_outputs: List[RequestOutput] = []
@@ -461,6 +487,7 @@ class LLMEngine:
                 if new_token is not None:
                     seq.output_tokens.append(new_token)
                     seq.output_text = new_output_text
+                    seq.last_output_text = new_output_text
 
     def _stop_sequences(self, seq_groups: List[SequenceGroup]) -> None:
         """Stop the finished sequences."""
@@ -497,6 +524,54 @@ class LLMEngine:
                         self.scheduler.free_seq(
                             seq, SequenceStatus.FINISHED_STOPPED)
                         continue
+
+                # look for stopping conditions and if there is more than one prompt
+                # change status to waiting and add decode tokens to prompt tokens
+                # restart the sequence
+                if seq_group.sampling_params.logits_warper.__class__.__name__ == "JsonDecoder":
+                    # check for each value end and add the next key appended to the total text
+                    # as the new prompt
+                    stop_strs = ["\",", "],", "},", "}", "]"]
+                    if len(seq.all_prompt_token_ids) == 0:
+                        self.scheduler.free_seq(seq, SequenceStatus.FINISHED_STOPPED)
+                        stopped = True
+                    else:
+                        for stop_str in stop_strs:
+                            if seq.output_text.endswith(stop_str):
+                                # Append new prompt to output tokens and prev prompts
+                                # Add add_seq_group to waiting state
+                                seq.all_prompts.pop(0)
+                                seq.data.append_prompt_token_ids(seq.all_prompt_token_ids.pop(0))
+                                # TODO: Assuming only one seq. Support beam search later
+                                seq_group.set_seq_statuses(SequenceStatus.WAITING)
+                                self.scheduler.add_seq_group(seq_group)
+
+                if seq_group.sampling_params.logits_warper.__class__.__name__ == "Selection":
+                    # Figure out if it's done or not
+                    option_num = seq_group.sampling_params.logits_warper.sequence_state.get(seq.seq_id, [-1])[0]
+                    if option_num != -1:
+                        stop_str = seq_group.sampling_params.logits_warper.options[option_num]
+                        if seq.output_text.endswith(stop_str):
+                            # Don't remove the stop string
+                            # seq.output_text = seq.output_text[:-len(stop_str)]
+
+                            # if there is more than one prompt
+                            # change status to waiting and add decode tokens to prompt tokens
+                            # restart the sequence
+                            if len(seq.all_prompt_token_ids) == 0:
+                                self.scheduler.free_seq(seq, SequenceStatus.FINISHED_STOPPED)
+                                stopped = True
+                            else:
+                                # Append new prompt to output tokens and prev prompts
+                                # Add add_seq_group to waiting state
+                                seq.all_prompts.pop(0)
+                                seq.data.append_prompt_token_ids(seq.all_prompt_token_ids.pop(0))
+
+                                # TODO: Assuming only one seq. Support beam search later
+                                seq_group.set_seq_statuses(SequenceStatus.WAITING)
+                                self.scheduler.add_seq_group(seq_group)
+                if stopped:
+                    continue
 
     def _run_workers(
         self,

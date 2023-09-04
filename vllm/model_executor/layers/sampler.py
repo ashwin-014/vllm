@@ -315,6 +315,10 @@ def _sample_from_generation_tokens(
     seq_logprobs: List[float],
     sampling_params: SamplingParams,
 ) -> Tuple[List[int], List[int]]:
+    if sampling_params.logits_warper:
+        # Apply the logits warper.
+        probs = sampling_params.logits_warper(seq_ids, probs)
+
     # NOTE(woosuk): sampling_params.best_of can be greater than
     # len(seq_ids) because some sequences in the group might have
     # been already terminated.

@@ -83,10 +83,10 @@ class AsyncLLMEngine:
 
     async def generate(
             self,
-            prompt: Optional[str],
+            prompt: Optional[List[str]],
             sampling_params: SamplingParams,
             request_id: str,
-            prompt_token_ids: Optional[List[int]] = None) -> RequestOutput:
+            prompt_token_ids: Optional[List[List[int]]] = None) -> RequestOutput:
         """Generate outputs for a request.
 
         Generate outputs for a request. This method is a coroutine. It adds the

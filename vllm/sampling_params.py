@@ -1,5 +1,7 @@
 """Sampling parameters for text generation."""
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict, Any
+from abc import ABC
+import torch
 
 _SAMPLING_EPS = 1e-5
 
@@ -56,6 +58,7 @@ class SamplingParams:
         ignore_eos: bool = False,
         max_tokens: int = 16,
         logprobs: Optional[int] = None,
+        output_guidance_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.n = n
         self.best_of = best_of if best_of is not None else n
@@ -74,6 +77,11 @@ class SamplingParams:
         self.ignore_eos = ignore_eos
         self.max_tokens = max_tokens
         self.logprobs = logprobs
+
+        self.logits_warper = None
+        warper_name = output_guidance_config.get("logits_warper", None)
+        if warper_name == "selection":
+            self.logits_warper = Selection(**output_guidance_config)
 
         self._verify_args()
         if self.use_beam_search:
@@ -142,3 +150,64 @@ class SamplingParams:
                 f"ignore_eos={self.ignore_eos}, "
                 f"max_tokens={self.max_tokens}, "
                 f"logprobs={self.logprobs})")
+
+
+class LogitsWarper(ABC):
+    def __init__(self, logit_scale: float = -100, logit_bias: float = -100, **kwargs):
+        self.logit_scale = logit_scale
+        self.logit_bias = logit_bias
+
+    def __call__(self, logit: float) -> float:
+        return logit * self.logit_scale + self.logit_bias
+
+
+class Selection(LogitsWarper):
+    """Logit warper that selects logits from a given list."""
+
+    def __init__(self, options: List[str], options_tokens: List[int], **kwargs) -> None:
+        super().__init__()
+        self.options = options
+        self.options_tokens = options_tokens
+        # seq_id is a universal counter in llm_engine
+        # how to maintain options per sequence?
+        # This is one instance per sequence group, so all taken care of
+        self.sequence_state = {}
+        # for option in self.options:
+        #     tokens = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(option))
+        #     self.options.append(tokens)
+
+    def __call__(self, seq_ids: List[int], logits: torch.Tensor) -> torch.Tensor:
+        max_prob = 0
+        seq_id = seq_ids[0]  # For now
+        # TODO: look into tensor shape of prob
+        # Edge cases:
+        #   - if only one option, return that
+        #   - if more than one option has the same starting token, need to branch to the right one
+        #   - if we figure out no other option is possible, stop generation and return the best option tokens
+        #   - check for end here or in stopping code?
+
+        print("--> ", logits.shape)
+        if not self.sequence_state[seq_id]:
+            for i, option in enumerate(self.options_tokens):
+                if logits[option[0]] > max_prob:
+                    max_prob = logits[option[0]]
+                    self.sequence_state[seq_id] = [i, option[0]]
+                    logits[option[0]] = 1000  # torch.inf
+            return logits
+        else:
+            # store option number and last token id
+            curr_option = self.options[self.sequence_state[seq_id][0]]
+            last_token = self.sequence_state[seq_id][1]
+
+            # check for max len here
+            new_token = curr_option[curr_option.index(last_token) + 1]
+            logits[new_token] = 1000  # torch.inf
+            self.sequence_state[seq_id][1] = new_token
+            return logits
+
+        # self.sequence_state.append(logit)
+
+
+# class SequenceStopper():
+#     def __init__(self, stop_sequence) -> None:
+#         super().__init__()

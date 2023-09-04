@@ -81,6 +81,10 @@ class SequenceData:
             return self.prompt_token_ids[-1]
         return self.output_token_ids[-1]
 
+    def append_prompt_token_ids(self, prompt_token_ids: List[int]) -> None:
+        self.prompt_token_ids = self.prompt_token_ids + self.output_token_ids + prompt_token_ids
+        self.output_token_ids = []  # Just in case
+
     def __repr__(self) -> str:
         return (f"SequenceData("
                 f"prompt_token_ids={self.prompt_token_ids}, "
@@ -102,18 +106,22 @@ class Sequence:
     def __init__(
         self,
         seq_id: int,
-        prompt: str,
+        prompt: List[str],
         prompt_token_ids: List[int],
         block_size: int,
     ) -> None:
         self.seq_id = seq_id
-        self.prompt = prompt
+        self.prompt = prompt.pop(0)
         self.block_size = block_size
 
-        self.data = SequenceData(prompt_token_ids)
+        self.data = SequenceData(prompt_token_ids.pop(0))
         self.output_logprobs: List[Dict[int, float]] = []
         self.output_tokens: List[str] = []
         self.output_text = ""
+        self.last_output_text = ""
+        self.all_prompts = prompt
+        self.all_prompt_token_ids = prompt_token_ids
+        # self.current_prompt = 0
 
         self.logical_token_blocks: List[LogicalTokenBlock] = []
         # Initialize the logical token blocks with the prompt token ids.
@@ -184,6 +192,9 @@ class Sequence:
         child_seq.output_logprobs = copy.deepcopy(self.output_logprobs)
         child_seq.data = copy.deepcopy(self.data)
 
+    def set_status(self, status: SequenceStatus) -> None:
+        self.status = status
+
     def __repr__(self) -> str:
         return (f"Sequence(seq_id={self.seq_id}, "
                 f"status={self.status.name}, "
@@ -232,6 +243,10 @@ class SequenceGroup:
 
     def is_finished(self) -> bool:
         return all(seq.is_finished() for seq in self.seqs)
+    
+    def set_seq_statuses(self, status: SequenceStatus) -> None:
+        for seq in self.seqs:
+            seq.status = status
 
     def __repr__(self) -> str:
         return (f"SequenceGroup(request_id={self.request_id}, "
