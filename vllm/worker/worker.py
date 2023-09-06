@@ -11,6 +11,7 @@ from vllm.model_executor import get_model, InputMetadata, set_random_seed
 from vllm.model_executor.parallel_utils.parallel_state import (
     initialize_model_parallel)
 from vllm.sampling_params import SamplingParams
+from vllm.output_control_params import OutputControlParams
 from vllm.sequence import SequenceData, SequenceGroupMetadata, SequenceOutputs
 from vllm.worker.cache_engine import CacheEngine
 from vllm.utils import get_gpu_memory
@@ -158,7 +159,7 @@ class Worker:
 
             seq_ids = list(seq_group_metadata.seq_data.keys())
             sampling_params = seq_group_metadata.sampling_params
-            seq_groups.append((seq_ids, sampling_params))
+            seq_groups.append((seq_ids, sampling_params, None))
 
             # Use any sequence in the group.
             seq_id = seq_ids[0]

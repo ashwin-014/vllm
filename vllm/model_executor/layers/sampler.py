@@ -423,7 +423,7 @@ def _sample(
                 for seq_id in seq_ids
             ]
             parent_seq_ids, next_token_ids = _sample_from_generation_tokens(
-                seq_ids, prob, logprob, seq_logprobs, sampling_params)
+                seq_ids, prob, logprob, seq_logprobs, sampling_params, output_control_params)
 
             # Get top-k log probabilities for the next tokens.
             next_logprobs: Dict[int, Dict[int, float]] = {}

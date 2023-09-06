@@ -5,7 +5,7 @@ import aiohttp
 
 
 def sample_requests(text):
-    prompt = """The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.\n"""
+    prompt = """The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.\n Please give the name of a popular fruit you know"""
     prompt += text
     return prompt
 
@@ -29,11 +29,15 @@ async def send_request(
         "max_tokens": output_len,
         "ignore_eos": ignore_eos,
         "stream": False,
-        "output_guidance_config": {
-            "logits_warper": "selection",
-            "options": ["Apple", "Banana", "Orange"]
+        "output_control_config": {
+            "type": "selection",
+            "schema": ["Apple", "Banana", "Orange"]
         }
     }
+    # "output_control_config": {
+    #         "type": "selection",
+    #         "schema": {"apple": "", "orange": "", "banana": ""}
+    #     }
 
     timeout = aiohttp.ClientTimeout(total=3 * 100)
     async with aiohttp.ClientSession(timeout=timeout) as session:
