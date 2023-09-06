@@ -9,6 +9,7 @@ from vllm.engine.ray_utils import initialize_cluster, ray
 from vllm.logger import init_logger
 from vllm.outputs import RequestOutput
 from vllm.sampling_params import SamplingParams
+from vllm.output_control_params import OutputControlParams
 
 logger = init_logger(__name__)
 
@@ -83,8 +84,9 @@ class AsyncLLMEngine:
 
     async def generate(
             self,
-            prompt: Optional[List[str]],
+            prompt: Optional[str],
             sampling_params: SamplingParams,
+            output_control_params: OutputControlParams,
             request_id: str,
             prompt_token_ids: Optional[List[List[int]]] = None) -> RequestOutput:
         """Generate outputs for a request.
@@ -131,6 +133,7 @@ class AsyncLLMEngine:
             self.engine.add_request(request_id,
                                     prompt,
                                     sampling_params,
+                                    output_control_params,
                                     prompt_token_ids=prompt_token_ids,
                                     arrival_time=arrival_time)
 

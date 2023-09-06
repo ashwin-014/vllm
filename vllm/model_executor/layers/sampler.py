@@ -9,6 +9,7 @@ from vllm.model_executor.input_metadata import InputMetadata
 from vllm.model_executor.parallel_utils.tensor_parallel import (
     gather_from_tensor_model_parallel_region)
 from vllm.sampling_params import SamplingParams
+from vllm.output_control_params import OutputControlParams
 from vllm.sequence import SequenceOutputs
 
 _SAMPLING_EPS = 1e-5
@@ -310,14 +311,17 @@ def _sample_from_prompt(
 
 def _sample_from_generation_tokens(
     seq_ids: List[int],
+    # seqs: List[Sequence],
     probs: torch.Tensor,
     logprobs: torch.Tensor,
     seq_logprobs: List[float],
     sampling_params: SamplingParams,
+    output_control_params: Optional[OutputControlParams] = None
 ) -> Tuple[List[int], List[int]]:
-    if sampling_params.logits_warper:
+    if output_control_params:
         # Apply the logits warper.
-        probs = sampling_params.logits_warper(seq_ids, probs)
+        # not using seq_ids for now since we don't support beam search during json decoding or selection
+        probs = output_control_params.forward(probs)
 
     # NOTE(woosuk): sampling_params.best_of can be greater than
     # len(seq_ids) because some sequences in the group might have
@@ -382,7 +386,10 @@ def _sample(
     # TODO(woosuk): Optimize.
     idx = 0
     for i, seq_group in enumerate(input_metadata.seq_groups):
-        seq_ids, sampling_params = seq_group
+        # seq_ids, sampling_params = seq_group
+        seq_ids, sampling_params, output_control_params = seq_group
+        # seqs, sampling_params, output_control_params = seq_group
+        # seq_ids = [seq.seq_id for seq in seqs]
         if i < input_metadata.num_prompts:
             # Generate the next tokens for a prompt input.
             assert len(seq_ids) == sampling_params.best_of
@@ -405,6 +412,7 @@ def _sample(
                                                       output_logprobs)
         else:
             # Generate the next tokens for generation tokens.
+            # add a biaser here to not take into account unnecessary tokens
             prob = probs[idx:idx + len(seq_ids)]
             logprob = logprobs[idx:idx + len(seq_ids)]
             idx += len(seq_ids)

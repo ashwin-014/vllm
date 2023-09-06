@@ -265,6 +265,7 @@ class Scheduler:
                 is_prompt=scheduler_outputs.prompt_run,
                 seq_data=seq_data,
                 sampling_params=seq_group.sampling_params,
+                output_control_params=seq_group.output_control_params,
                 block_tables=block_tables,
             )
             seq_group_metadata_list.append(seq_group_metadata)

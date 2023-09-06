@@ -145,7 +145,7 @@ class Worker:
         self,
         seq_group_metadata_list: List[SequenceGroupMetadata],
     ) -> Tuple[torch.Tensor, torch.Tensor, InputMetadata]:
-        seq_groups: List[Tuple[List[int], SamplingParams]] = []
+        seq_groups: List[Tuple[List[int], SamplingParams, OutputControlParams]] = []
         input_tokens: List[int] = []
         input_positions: List[int] = []
         slot_mapping: List[int] = []
@@ -198,7 +198,8 @@ class Worker:
 
             seq_ids = list(seq_group_metadata.seq_data.keys())
             sampling_params = seq_group_metadata.sampling_params
-            seq_groups.append((seq_ids, sampling_params))
+            output_control_params = seq_group_metadata.output_control_params
+            seq_groups.append((seq_ids, sampling_params, output_control_params))
 
             for seq_id in seq_ids:
                 seq_data = seq_group_metadata.seq_data[seq_id]

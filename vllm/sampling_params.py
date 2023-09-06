@@ -58,7 +58,7 @@ class SamplingParams:
         ignore_eos: bool = False,
         max_tokens: int = 16,
         logprobs: Optional[int] = None,
-        output_guidance_config: Optional[Dict[str, Any]] = None,
+        output_guidance_config: Optional[Dict[str, Any]] = {},
     ) -> None:
         self.n = n
         self.best_of = best_of if best_of is not None else n
@@ -89,6 +89,9 @@ class SamplingParams:
         elif self.temperature < _SAMPLING_EPS:
             # Zero temperature means greedy sampling.
             self._verify_greedy_sampling()
+
+    def maintain_seq_state(self, seq_id: int, seq_state: List[Any]) -> None:
+        self.sequence_state[seq_id] = seq_state
 
     def _verify_args(self) -> None:
         if self.n < 1:
@@ -175,6 +178,20 @@ class Selection(LogitsWarper):
         # for option in self.options:
         #     tokens = tokenizer.convert_tokens_to_ids(tokenizer.tokenize(option))
         #     self.options.append(tokens)
+        # We need to search through the options space in a Trie based fashion
+        # will help with branching and expressiveness
+        # re.compile and looping over 50k tokens is not feasible
+        # Algorithm is:
+        #  - Generate a Trie with all possible tokenisation combinations
+        #  - Each branch will have a different version of an option
+        #  - Get the current step number from the state
+        #  - Bias all tokens except the tokens of interest to zero
+        #  - Sampler will sample from the logits
+        #  - Get the output token and update the state and step number within the Trie
+        #  - Short circuting can be done if we know the current branch doesn't branch out in later steps
+        #  - If we see it does, go step by step
+        #  - Can we do sampling in GPU? Can we maintain this state and have Tries in GPU?
+        # We can't do this for Regex output control
 
     def __call__(self, seq_ids: List[int], logits: torch.Tensor) -> torch.Tensor:
         max_prob = 0

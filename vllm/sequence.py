@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Union
 
 from vllm.block import LogicalTokenBlock
 from vllm.sampling_params import SamplingParams
+from vllm.output_control_params import OutputControlParams
 
 
 class SequenceStatus(enum.Enum):
@@ -106,15 +107,15 @@ class Sequence:
     def __init__(
         self,
         seq_id: int,
-        prompt: List[str],
-        prompt_token_ids: List[int],
+        prompt: str,
+        prompt_token_ids: int,
         block_size: int,
     ) -> None:
         self.seq_id = seq_id
-        self.prompt = prompt.pop(0)
+        self.prompt = prompt
         self.block_size = block_size
 
-        self.data = SequenceData(prompt_token_ids.pop(0))
+        self.data = SequenceData(prompt_token_ids)
         self.output_logprobs: List[Dict[int, float]] = []
         self.output_tokens: List[str] = []
         self.output_text = ""
@@ -217,11 +218,13 @@ class SequenceGroup:
         seqs: List[Sequence],
         sampling_params: SamplingParams,
         arrival_time: float,
+        output_control_params: OutputControlParams
     ) -> None:
         self.request_id = request_id
         self.seqs = seqs
         self.sampling_params = sampling_params
         self.arrival_time = arrival_time
+        self.output_control_params = output_control_params
 
     def get_seqs(
         self,
@@ -243,7 +246,7 @@ class SequenceGroup:
 
     def is_finished(self) -> bool:
         return all(seq.is_finished() for seq in self.seqs)
-    
+
     def set_seq_statuses(self, status: SequenceStatus) -> None:
         for seq in self.seqs:
             seq.status = status
