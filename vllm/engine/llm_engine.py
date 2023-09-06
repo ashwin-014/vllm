@@ -264,7 +264,7 @@ class LLMEngine:
             #     prompt_token_ids.append(self.tokenizer.encode(p))
             prompt_token_ids = self.tokenizer.encode(prompt)
 
-        print("--> ", output_control_params)
+        print("--> output_control_params: ", output_control_params)
         # if sampling_params.output_guidance_config.get("logits_warper", None) == "selection":
         #     # Select from given options only
         #     options = []
@@ -296,6 +296,7 @@ class LLMEngine:
         # Create the sequence group.
         seq_group = SequenceGroup(request_id, seqs, sampling_params,
                                   arrival_time, output_control_params)
+        print(f"llm engine seq group output: {seq_group.output_control_params}") 
 
         # Add the sequence group to the scheduler.
         self.scheduler.add_seq_group(seq_group)
@@ -319,31 +320,6 @@ class LLMEngine:
     def has_unfinished_requests(self) -> bool:
         """Returns True if there are unfinished requests."""
         return self.scheduler.has_unfinished_seqs()
-
-    def maintain_state(self, seq: Sequence, state: Any) -> None:
-        """Maintains state for a request.
-
-        Args:
-            seq: The sequence to maintain state for.
-            state: The state to maintain.
-        """
-        # How to figure out if we have reached the end of a decode phase?
-        # Figure out which prompt to encode next
-        # What's the datastructure which best stores a json input and stores them in vars?
-        # for json the vars are straightforward. just use the keys as the name
-        # Not worrying about nested json for now
-        # sample schema
-        # {
-        #    "name": "John",
-        #    "age": "30",
-        #    "cars": "2"
-        # }
-        # current key
-        # is_value_done = False
-        # is_prefill / is_decode = True
-
-        # seq.maintain_state(seq, state)
-        pass
 
     def step(self) -> List[RequestOutput]:
         """Performs one decoding iteration and returns newly generated results.
@@ -532,6 +508,7 @@ class LLMEngine:
         """Stop the finished sequences."""
         for seq_group in seq_groups:
             sampling_params = seq_group.sampling_params
+            output_control_params = seq_group.output_control_params
             for seq in seq_group.get_seqs(status=SequenceStatus.RUNNING):
                 # Check if the sequence has generated a stop string.
                 stopped = False
@@ -565,55 +542,60 @@ class LLMEngine:
                         self.scheduler.free_seq(
                             seq, SequenceStatus.FINISHED_STOPPED)
                         continue
+                # Check if all required values are generated.
+                if output_control_params and output_control_params.current_step >= len(output_control_params.control_state):
+                    self.scheduler.free_seq(
+                        seq, SequenceStatus.FINISHED_STOPPED)
+                    continue
 
                 # look for stopping conditions and if there is more than one prompt
                 # change status to waiting and add decode tokens to prompt tokens
                 # restart the sequence
-                if seq_group.sampling_params.logits_warper.__class__.__name__ == "JsonDecoder":
-                    # check for each value end and add the next key appended to the total text
-                    # as the new prompt
-                    stop_strs = ["\",", "],", "},", "}", "]"]
-                    if len(seq.all_prompt_token_ids) == 0:
-                        self.scheduler.free_seq(seq, SequenceStatus.FINISHED_STOPPED)
-                        stopped = True
-                    else:
-                        for stop_str in stop_strs:
-                            if seq.output_text.endswith(stop_str):
-                                # Append new prompt to output tokens and prev prompts
-                                # Add add_seq_group to waiting state
-                                seq.all_prompts.pop(0)
-                                seq.data.append_prompt_token_ids(seq.all_prompt_token_ids.pop(0))
-                                # TODO: Assuming only one seq. Support beam search later
-                                seq_group.set_seq_statuses(SequenceStatus.WAITING)
-                                self.scheduler.add_seq_group(seq_group)
+                # if seq_group.sampling_params.logits_warper.__class__.__name__ == "JsonDecoder":
+                #     # check for each value end and add the next key appended to the total text
+                #     # as the new prompt
+                #     stop_strs = ["\",", "],", "},", "}", "]"]
+                #     if len(seq.all_prompt_token_ids) == 0:
+                #         self.scheduler.free_seq(seq, SequenceStatus.FINISHED_STOPPED)
+                #         stopped = True
+                #     else:
+                #         for stop_str in stop_strs:
+                #             if seq.output_text.endswith(stop_str):
+                #                 # Append new prompt to output tokens and prev prompts
+                #                 # Add add_seq_group to waiting state
+                #                 seq.all_prompts.pop(0)
+                #                 seq.data.append_prompt_token_ids(seq.all_prompt_token_ids.pop(0))
+                #                 # TODO: Assuming only one seq. Support beam search later
+                #                 seq_group.set_seq_statuses(SequenceStatus.WAITING)
+                #                 self.scheduler.add_seq_group(seq_group)
 
-                if seq_group.sampling_params.logits_warper.__class__.__name__ == "Selection":
-                    # Figure out if it's done or not
-                    option_num = seq_group.sampling_params.logits_warper.sequence_state.get(seq.seq_id, [-1])[0]
-                    if option_num != -1:
-                        stop_str = seq_group.sampling_params.logits_warper.options[option_num]
-                        if seq.output_text.endswith(stop_str):
-                            # Don't remove the stop string
-                            # seq.output_text = seq.output_text[:-len(stop_str)]
+                # if seq_group.sampling_params.logits_warper.__class__.__name__ == "Selection":
+                #     # Figure out if it's done or not
+                #     option_num = seq_group.sampling_params.logits_warper.sequence_state.get(seq.seq_id, [-1])[0]
+                #     if option_num != -1:
+                #         stop_str = seq_group.sampling_params.logits_warper.options[option_num]
+                #         if seq.output_text.endswith(stop_str):
+                #             # Don't remove the stop string
+                #             # seq.output_text = seq.output_text[:-len(stop_str)]
 
-                            # if there is more than one prompt
-                            # change status to waiting and add decode tokens to prompt tokens
-                            # restart the sequence
-                            _ = self.check_and_add_to_waiting(seq, seq_group)
-                            # if len(seq.all_prompt_token_ids) == 0:
-                            #     self.scheduler.free_seq(seq, SequenceStatus.FINISHED_STOPPED)
-                            #     stopped = True
-                            # else:
-                            #     # Append new prompt to output tokens and prev prompts
-                            #     # Add add_seq_group to waiting state
-                            #     seq.all_prompts.pop(0)
-                            #     seq.data.append_prompt_token_ids(seq.all_prompt_token_ids.pop(0))
+                #             # if there is more than one prompt
+                #             # change status to waiting and add decode tokens to prompt tokens
+                #             # restart the sequence
+                #             _ = self.check_and_add_to_waiting(seq, seq_group)
+                #             # if len(seq.all_prompt_token_ids) == 0:
+                #             #     self.scheduler.free_seq(seq, SequenceStatus.FINISHED_STOPPED)
+                #             #     stopped = True
+                #             # else:
+                #             #     # Append new prompt to output tokens and prev prompts
+                #             #     # Add add_seq_group to waiting state
+                #             #     seq.all_prompts.pop(0)
+                #             #     seq.data.append_prompt_token_ids(seq.all_prompt_token_ids.pop(0))
 
-                            #     # TODO: Assuming only one seq. Support beam search later
-                            #     seq_group.set_seq_statuses(SequenceStatus.WAITING)
-                            #     self.scheduler.add_seq_group(seq_group)
-                # if stopped:
-                #     continue
+                #             #     # TODO: Assuming only one seq. Support beam search later
+                #             #     seq_group.set_seq_statuses(SequenceStatus.WAITING)
+                #             #     self.scheduler.add_seq_group(seq_group)
+                # # if stopped:
+                # #     continue
 
     def _run_workers(
         self,

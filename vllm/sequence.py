@@ -277,11 +277,13 @@ class SequenceGroupMetadata:
         seq_data: Dict[int, SequenceData],
         sampling_params: SamplingParams,
         block_tables: Dict[int, List[int]],
+        output_control_params: Optional[OutputControlParams] = None,
     ) -> None:
         self.request_id = request_id
         self.is_prompt = is_prompt
         self.seq_data = seq_data
         self.sampling_params = sampling_params
+        self.output_control_params = output_control_params
         self.block_tables = block_tables
 
 
@@ -303,17 +305,20 @@ class SequenceOutputs:
         parent_seq_id: int,
         output_token: int,
         logprobs: Dict[int, float],
+        output_control_params: Optional[OutputControlParams] = None,
     ) -> None:
         self.seq_id = seq_id
         self.parent_seq_id = parent_seq_id
         self.output_token = output_token
         self.logprobs = logprobs
+        self.output_control_params = output_control_params
 
     def __repr__(self) -> str:
         return (f"SequenceOutputs(seq_id={self.seq_id}, "
                 f"parent_seq_id={self.parent_seq_id}, "
                 f"output_token={self.output_token}), "
-                f"logprobs={self.logprobs}")
+                f"logprobs={self.logprobs}"
+                f"output_control_params={self.output_control_params}")
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, SequenceOutputs):
@@ -321,4 +326,5 @@ class SequenceOutputs:
         return (self.seq_id == other.seq_id
                 and self.parent_seq_id == other.parent_seq_id
                 and self.output_token == other.output_token
-                and self.logprobs == other.logprobs)
+                and self.logprobs == other.logprobs
+                and self.output_control_params == other.output_control_params)

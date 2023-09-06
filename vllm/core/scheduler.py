@@ -1,5 +1,6 @@
 import enum
 import time
+from copy import deepcopy
 from typing import Dict, List, Optional, Tuple
 
 from vllm.config import CacheConfig, SchedulerConfig
@@ -260,6 +261,7 @@ class Scheduler:
                 seq_data[seq_id] = seq.data
                 block_tables[seq_id] = self.block_manager.get_block_table(seq)
 
+            print(f"scheduler seq group output: {seq_group.output_control_params}")
             seq_group_metadata = SequenceGroupMetadata(
                 request_id=seq_group.request_id,
                 is_prompt=scheduler_outputs.prompt_run,
@@ -301,6 +303,11 @@ class Scheduler:
                 # Append a new token to the sequence.
                 output = seq_outputs[seq.seq_id]
                 seq.append_token_id(output.output_token, output.logprobs)
+
+            # copy the control params to the seq group from the output
+            print("scheduler update output_control_params: ", output.output_control_params)
+            seq_group.output_control_params = deepcopy(output.output_control_params)
+
         return scheduled
 
     def free_seq(self, seq: Sequence, finish_status: SequenceStatus) -> None:

@@ -58,7 +58,7 @@ class SamplingParams:
         ignore_eos: bool = False,
         max_tokens: int = 16,
         logprobs: Optional[int] = None,
-        output_guidance_config: Optional[Dict[str, Any]] = {},
+        # output_guidance_config: Optional[Dict[str, Any]] = {},
     ) -> None:
         self.n = n
         self.best_of = best_of if best_of is not None else n
@@ -78,10 +78,10 @@ class SamplingParams:
         self.max_tokens = max_tokens
         self.logprobs = logprobs
 
-        self.logits_warper = None
-        warper_name = output_guidance_config.get("logits_warper", None)
-        if warper_name == "selection":
-            self.logits_warper = Selection(**output_guidance_config)
+        # self.logits_warper = None
+        # warper_name = output_guidance_config.get("logits_warper", None)
+        # if warper_name == "selection":
+        #     self.logits_warper = Selection(**output_guidance_config)
 
         self._verify_args()
         if self.use_beam_search:

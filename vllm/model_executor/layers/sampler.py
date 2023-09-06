@@ -110,7 +110,7 @@ def _get_penalties(
     presence_penalties: List[float] = []
     frequency_penalties: List[float] = []
     for i, seq_group in enumerate(input_metadata.seq_groups):
-        seq_ids, sampling_params = seq_group
+        seq_ids, sampling_params, _ = seq_group
         p = sampling_params.presence_penalty
         f = sampling_params.frequency_penalty
         if i < input_metadata.num_prompts:
@@ -127,7 +127,7 @@ def _get_penalties(
 def _get_output_tokens(input_metadata: InputMetadata) -> List[List[int]]:
     output_tokens: List[List[int]] = []
     for i, seq_group in enumerate(input_metadata.seq_groups):
-        seq_ids, _ = seq_group
+        seq_ids, _, _ = seq_group
         if i < input_metadata.num_prompts:
             # A prompt input.
             # NOTE: While the prompt input usually has no output tokens,
@@ -194,7 +194,7 @@ def _get_temperatures(input_metadata: InputMetadata) -> List[float]:
     # Collect the temperatures for the logits.
     temperatures: List[float] = []
     for i, seq_group in enumerate(input_metadata.seq_groups):
-        seq_ids, sampling_params = seq_group
+        seq_ids, sampling_params, _ = seq_group
         temperature = sampling_params.temperature
         if temperature < _SAMPLING_EPS:
             # NOTE: Zero temperature means deterministic sampling
@@ -218,7 +218,7 @@ def _get_top_p_top_k(
     top_ps: List[float] = []
     top_ks: List[int] = []
     for i, seq_group in enumerate(input_metadata.seq_groups):
-        seq_ids, sampling_params = seq_group
+        seq_ids, sampling_params, _ = seq_group
         top_p = sampling_params.top_p
         # k should not be greater than the vocab size.
         top_k = min(sampling_params.top_k, vocab_size)
@@ -373,7 +373,7 @@ def _sample_from_generation_tokens(
                                            replacement=True)
         next_token_ids = next_token_ids.squeeze(dim=-1).tolist()
         parent_seq_ids = seq_ids
-    return parent_seq_ids, next_token_ids
+    return parent_seq_ids, next_token_ids, output_control_params
 
 
 def _sample(
@@ -388,6 +388,7 @@ def _sample(
     for i, seq_group in enumerate(input_metadata.seq_groups):
         # seq_ids, sampling_params = seq_group
         seq_ids, sampling_params, output_control_params = seq_group
+        print("sampler output_control_params: ", output_control_params)
         # seqs, sampling_params, output_control_params = seq_group
         # seq_ids = [seq.seq_id for seq in seqs]
         if i < input_metadata.num_prompts:
@@ -409,7 +410,9 @@ def _sample(
                 output_logprobs[next_token_id] = logprob[next_token_id].item()
                 seq_outputs[seq_id] = SequenceOutputs(seq_id, seq_id,
                                                       next_token_id,
-                                                      output_logprobs)
+                                                      output_logprobs,
+                                                      output_control_params
+                                                      )
         else:
             # Generate the next tokens for generation tokens.
             # add a biaser here to not take into account unnecessary tokens
@@ -422,8 +425,9 @@ def _sample(
                 input_metadata.seq_data[seq_id].cumulative_logprob
                 for seq_id in seq_ids
             ]
-            parent_seq_ids, next_token_ids = _sample_from_generation_tokens(
+            parent_seq_ids, next_token_ids, output_control_params = _sample_from_generation_tokens(
                 seq_ids, prob, logprob, seq_logprobs, sampling_params, output_control_params)
+            print("generation output_control_params: ", output_control_params)
 
             # Get top-k log probabilities for the next tokens.
             next_logprobs: Dict[int, Dict[int, float]] = {}
@@ -443,6 +447,7 @@ def _sample(
                     parent_seq_id,
                     next_token_id,
                     output_logprobs,
+                    output_control_params
                 )
 
     return seq_outputs

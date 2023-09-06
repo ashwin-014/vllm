@@ -159,7 +159,7 @@ class Worker:
 
             seq_ids = list(seq_group_metadata.seq_data.keys())
             sampling_params = seq_group_metadata.sampling_params
-            seq_groups.append((seq_ids, sampling_params, None))
+            seq_groups.append((seq_ids, sampling_params, seq_group_metadata.output_control_params))
 
             # Use any sequence in the group.
             seq_id = seq_ids[0]
@@ -199,8 +199,9 @@ class Worker:
 
             seq_ids = list(seq_group_metadata.seq_data.keys())
             sampling_params = seq_group_metadata.sampling_params
-            output_control_params = seq_group_metadata.output_control_params
-            seq_groups.append((seq_ids, sampling_params, output_control_params))
+            # output_control_params = seq_group_metadata.output_control_params
+            print(f"worker output: {seq_group_metadata.output_control_params}")
+            seq_groups.append((seq_ids, sampling_params, seq_group_metadata.output_control_params))
 
             for seq_id in seq_ids:
                 seq_data = seq_group_metadata.seq_data[seq_id]

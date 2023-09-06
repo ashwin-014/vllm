@@ -5,7 +5,7 @@ import aiohttp
 
 
 def sample_requests(text):
-    prompt = """The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.\n Please give the name of a popular fruit you know"""
+    prompt = """The following is a conversation with an AI assistant. The assistant is helpful, creative, clever, and very friendly.\n"""
     prompt += text
     return prompt
 
@@ -30,8 +30,8 @@ async def send_request(
         "ignore_eos": ignore_eos,
         "stream": False,
         "output_control_config": {
-            "type": "selection",
-            "schema": ["Apple", "Banana", "Orange"]
+            "type": "select",
+            "schema": ["Orange", "Apple"]
         }
     }
     # "output_control_config": {
@@ -53,13 +53,14 @@ async def send_request(
             if "error" not in output:
                 break
 
-    return output["choices"][0]["text"]
+    print(f"output: {output}")
+    return output
 
 
 def main():
     api_url = "http://localhost:8000/generate"
 
-    text = "Name a popular fruit"
+    text = "Name a popular fruit that comes to your mind first"
     prompt = sample_requests(text)
     st = time.time()
     asyncio.run(send_request(prompt, api_url))

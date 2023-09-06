@@ -9,6 +9,7 @@ import uvicorn
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.engine.async_llm_engine import AsyncLLMEngine
 from vllm.sampling_params import SamplingParams
+from vllm.output_control_params import OutputControlParams
 from vllm.utils import random_uuid
 
 TIMEOUT_KEEP_ALIVE = 5  # seconds.
@@ -31,9 +32,17 @@ async def generate(request: Request) -> Response:
     request_dict = await request.json()
     prompt = request_dict.pop("prompt")
     stream = request_dict.pop("stream", False)
+    output_control_params = request_dict.get("output_control_config")
+    print("--> output_control_params: ", output_control_params, request_dict)
+    if output_control_params:
+        conf = request_dict.pop("output_control_config", {})
+        output_control_params = OutputControlParams(conf, engine.engine.tokenizer)
+        print("--> output_control_params 2: ", output_control_params, output_control_params, request_dict)
+
     sampling_params = SamplingParams(**request_dict)
+
     request_id = random_uuid()
-    results_generator = engine.generate(prompt, sampling_params, request_id)
+    results_generator = engine.generate(prompt, sampling_params, request_id, output_control_params)
 
     # Streaming case
     async def stream_results() -> AsyncGenerator[bytes, None]:
