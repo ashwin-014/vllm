@@ -15,7 +15,7 @@ async def send_request(
     api_url,
     best_of=1,
     use_beam_search=False,
-    output_len=256,
+    output_len=128,
     ignore_eos=False
 ):
     headers = {}
@@ -24,14 +24,25 @@ async def send_request(
         "n": 1,
         "best_of": best_of,
         "use_beam_search": use_beam_search,
-        "temperature": 0.0 if use_beam_search else 1.0,
+        "temperature": 0,  # 0.0 if use_beam_search else 1.0,
         "top_p": 1.0,
         "max_tokens": output_len,
         "ignore_eos": ignore_eos,
         "stream": False,
         "output_control_config": {
-            "type": "select",
-            "schema": ["Orange", "Apple"]
+            # "type": "select",
+            # "schema": ["Manmohan Singh", "Narendra Modi", "Yogi", "Trump"]
+            # "type": "json",
+            # "schema": ["Manmohan Singh", "Narendra Modi", "Yogi", "Trump"]
+            "type": "json",
+            "schema": {
+                "search_engine": "select: [\"Yahoo\", \"BuckBuckBo\"]",
+                "fruit": "",
+                "vegetable": "select: [\"Kovakkai\", \"Potato\", \"Tomato\"]",
+            #     # "search_engine_3": "",
+            #     # "search_engine_4": ""
+            #     # "fruit3": "banana"
+            }
         }
     }
     # "output_control_config": {
@@ -60,7 +71,7 @@ async def send_request(
 def main():
     api_url = "http://localhost:8000/generate"
 
-    text = "Name a popular fruit that comes to your mind first"
+    text = "List a one search engines and one fruit you know in the JSON format: "
     prompt = sample_requests(text)
     st = time.time()
     asyncio.run(send_request(prompt, api_url))

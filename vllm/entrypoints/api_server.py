@@ -33,11 +33,11 @@ async def generate(request: Request) -> Response:
     prompt = request_dict.pop("prompt")
     stream = request_dict.pop("stream", False)
     output_control_params = request_dict.get("output_control_config")
-    print("--> output_control_params: ", output_control_params, request_dict)
+    # print("--> api server output_control_params: ", output_control_params, request_dict)
     if output_control_params:
         conf = request_dict.pop("output_control_config", {})
         output_control_params = OutputControlParams(conf, engine.engine.tokenizer)
-        print("--> output_control_params 2: ", output_control_params, output_control_params, request_dict)
+        # print("--> output_control_params 2: ", output_control_params, output_control_params, request_dict)
 
     sampling_params = SamplingParams(**request_dict)
 

@@ -138,7 +138,7 @@ class AsyncLLMEngine:
                                     prompt_token_ids=prompt_token_ids,
                                     arrival_time=arrival_time)
 
-        print("--> output_control_params: ", output_control_params)
+        # print("--> async engine output_control_params: ", output_control_params)
         # The vLLM engine does not have a background loop that keeps
         # processing incoming requests. Therefore, we need to keep kicking
         # the engine to process the requests.

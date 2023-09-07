@@ -264,7 +264,7 @@ class LLMEngine:
             #     prompt_token_ids.append(self.tokenizer.encode(p))
             prompt_token_ids = self.tokenizer.encode(prompt)
 
-        print("--> output_control_params: ", output_control_params)
+        print("--> llm engine output_control_params: ", output_control_params)
         # if sampling_params.output_guidance_config.get("logits_warper", None) == "selection":
         #     # Select from given options only
         #     options = []
@@ -296,7 +296,7 @@ class LLMEngine:
         # Create the sequence group.
         seq_group = SequenceGroup(request_id, seqs, sampling_params,
                                   arrival_time, output_control_params)
-        print(f"llm engine seq group output: {seq_group.output_control_params}") 
+        # print(f"llm engine seq group output: {seq_group.output_control_params}") 
 
         # Add the sequence group to the scheduler.
         self.scheduler.add_seq_group(seq_group)
@@ -483,6 +483,7 @@ class LLMEngine:
                     seq.get_last_token_id(),
                     skip_special_tokens=True,
                 )
+                print("\t\tnew token, new text", new_token, new_output_text, seq.get_last_token_id())
                 if new_token is not None:
                     seq.output_tokens.append(new_token)
                     seq.output_text = new_output_text
@@ -543,7 +544,11 @@ class LLMEngine:
                             seq, SequenceStatus.FINISHED_STOPPED)
                         continue
                 # Check if all required values are generated.
-                if output_control_params and output_control_params.current_step >= len(output_control_params.control_state):
+                # check if substep is done
+                # check if all prompts and decodes are done
+                if output_control_params and output_control_params.all_steps_done:
+                    print("\n\--> stop seq: ", seq.get_output_token_ids(), seq.output_text, output_control_params.current_step)
+                    print("\n-------------------------------------------\n\n")
                     self.scheduler.free_seq(
                         seq, SequenceStatus.FINISHED_STOPPED)
                     continue

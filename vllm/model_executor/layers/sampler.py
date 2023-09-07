@@ -287,7 +287,13 @@ def _get_topk_logprobs(
 def _sample_from_prompt(
     prob: torch.Tensor,
     sampling_params: SamplingParams,
+    output_control_params: Optional[OutputControlParams] = None
 ) -> List[int]:
+    if output_control_params:
+        # not using seq_ids for now since we don't support beam search during json decoding or selection
+        # print(f"prompt prob: {prob.unsqueeze(0).shape}")
+        prob = output_control_params.forward(prob.unsqueeze(0)).squeeze(0)
+
     if sampling_params.use_beam_search:
         # Beam search.
         beam_width = sampling_params.best_of
@@ -306,7 +312,7 @@ def _sample_from_prompt(
                                            num_samples=num_seqs,
                                            replacement=True)
         next_token_ids = next_token_ids.tolist()
-    return next_token_ids
+    return next_token_ids, output_control_params
 
 
 def _sample_from_generation_tokens(
@@ -363,6 +369,7 @@ def _sample_from_generation_tokens(
         # Greedy sampling.
         assert len(seq_ids) == 1
         next_token_id = torch.argmax(probs, dim=-1)
+        print("sampled token: ", next_token_id.item())
         next_token_ids = [int(next_token_id.item())]
         parent_seq_ids = seq_ids
     else:
@@ -388,7 +395,7 @@ def _sample(
     for i, seq_group in enumerate(input_metadata.seq_groups):
         # seq_ids, sampling_params = seq_group
         seq_ids, sampling_params, output_control_params = seq_group
-        print("sampler output_control_params: ", output_control_params)
+        # print("sampler output_control_params: ", output_control_params)
         # seqs, sampling_params, output_control_params = seq_group
         # seq_ids = [seq.seq_id for seq in seqs]
         if i < input_metadata.num_prompts:
@@ -399,7 +406,7 @@ def _sample(
             idx += 1
 
             # Sample the next tokens.
-            next_token_ids = _sample_from_prompt(prob, sampling_params)
+            next_token_ids, output_control_params = _sample_from_prompt(prob, sampling_params, output_control_params)
             # Get top-k log probabilities for the next tokens.
             next_logprobs = _get_topk_logprobs(logprob,
                                                sampling_params.logprobs)
@@ -427,7 +434,7 @@ def _sample(
             ]
             parent_seq_ids, next_token_ids, output_control_params = _sample_from_generation_tokens(
                 seq_ids, prob, logprob, seq_logprobs, sampling_params, output_control_params)
-            print("generation output_control_params: ", output_control_params)
+            # print("generation output_control_params: ", output_control_params)
 
             # Get top-k log probabilities for the next tokens.
             next_logprobs: Dict[int, Dict[int, float]] = {}
